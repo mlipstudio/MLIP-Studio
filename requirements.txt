@@ -1,0 +1,38 @@
+# Base packages
+streamlit
+pandas
+
+# Install fairchem-core first
+# fairchem-core==2.16.0 moved to docker instantiation file to ignore python version
+
+# openbabel-wheel
+rdkit
+
+# Pin specific versions to override dependencies
+numpy
+ase==3.26.0
+# Install mace_e3nn_new from the main branch on GitHub
+git+https://github.com/manassharma07/mace_e3nn_new.git@main#egg=mace_e3nn_new
+# mace-torch
+py3dmol
+huggingface_hub
+hf_xet
+orb-models
+# For matter sim models
+git+https://github.com/microsoft/mattersim.git
+# For sevennet models
+sevenn
+# For dispersion Correction
+torch-dftd
+# For PubChem
+pubchempy
+#upet
+warp-lang
+#upet@git+https://github.com/lab-cosmo/upet.git
+metatrain
+metatomic-torch
+metatomic-ase
+ray
+ray[serve]
+hydra-core
+torchtnt
