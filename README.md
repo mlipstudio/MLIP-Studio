@@ -34,8 +34,8 @@ MLIP Studio addresses this by providing a unified interface for model selection,
 | Visualization | Interactive 3D structure viewing with multiple styles such as ball-and-stick, stick, line, and space-filling representations |
 | Model selection | Predefined universal MLIPs, custom MACE model upload, custom MACE model URL loading, UFF, D3 dispersion, xTB, and the in-house QM9 HOMO-LUMO gap model |
 | Single-structure prediction | Energy, forces, stress, atomization energy, cohesive energy, HOMO-LUMO gap, band gap, density of states, dipole moment, partial charges, and Hessian-related outputs where supported |
-| Geometry optimization | Molecular geometry optimization and cell plus geometry optimization using ASE optimizers including BFGS, BFGSLineSearch, LBFGS, LBFGSLineSearch, FIRE, GPMin, MDMin, and FASTMSO |
-| FASTMSO optimizer | A multi-stage optimizer that switches through FIRE, MDMin, and LBFGS for robust MLIP-based relaxation |
+| Geometry optimization | Molecular geometry optimization and cell plus geometry optimization using ASE optimizers including BFGS, BFGSLineSearch, LBFGS, LBFGSLineSearch, FIRE, GPMin, MDMin, FASTMSO, Lindh Hessian LBFGS, MACE Hessian LBFGS, and MACE-Seed LBFGS |
+| Hessian-guided optimizers | Line-search-free Lindh Hessian, MACE Hessian, and MACE-Seed LBFGS methods. Across the 30-molecule Baker set with MACE OMAT Medium, MACE POLAR 1 L, and UMA OMOL s1.2 at `fmax=0.01 eV/A`, Lindh Hessian reduced mean optimization cycles by 71.8% to 76.7% (3.54x to 4.30x), while MACE Hessian reduced them by 53.9% to 80.9% (2.17x to 5.23x), relative to standard LBFGS; both converged all 90 runs. |
 | Vibrational analysis | Finite-difference vibrational mode analysis, frequency tables, frequency histograms, zero-point vibrational energy, vibrational entropy, and downloadable CSV output |
 | Equation of state | Energy-volume scans with Birch-Murnaghan, Murnaghan, and Vinet fits; reports equilibrium volume, equilibrium energy, bulk modulus, and pressure derivative |
 | Spin-state scans | Spin determination for compatible OMOL-style models that accept charge and spin inputs |
@@ -43,6 +43,81 @@ MLIP Studio addresses this by providing a unified interface for model selection,
 | Trajectory benchmarking | extXYZ trajectory evaluation with parity plots, error tables, MAE, RMSE, R2 metrics, element-wise force diagnostics, and downloadable results |
 | Performance benchmarking | Wall-clock time reporting for comparing model speed across CPU/GPU hardware and model families |
 | Deployment | Local Streamlit app, hosted online instance, and a provided Dockerfile for containerized deployment |
+
+
+### Lindh Hessian LBFGS Optimizer
+
+`Lindh Hessian LBFGS` uses a Lindh model Hessian as a chemically informed L-BFGS preconditioner for molecules and fixed-cell periodic systems. It does not calculate a numerical or finite-difference MLIP Hessian, and it does not request additional MLIP energy or force evaluations to build the model Hessian. The model uses the distance-dependent stretch, bend, and torsional force constants from Lindh, Bernhardsson, Karlstrom, and Malmqvist and regularizes the active Cartesian Hessian before solving. Maximum-displacement clipping is used without a Wolfe or Armijo line search, so each cycle requires one new target-model force evaluation.
+
+Periodic internal coordinates use minimum-image vectors, so atoms can cross cell boundaries without changing the model Hessian. Full-rank orthogonal cells use a cached Numba MIC kernel and analytic periodic torsion derivatives; triclinic and rank-deficient cells retain ASE's general MIC implementation. Periodic preconditioners use a positive diagonal shift and CUDA Cholesky factorization when available, with automatic CPU fallback. The original molecular path retains its spectral eigenvalue-floor regularization. Variable-cell relaxation is not supported because the Lindh model does not include strain/cell degrees of freedom. It may improve early optimization steps for systems with stiff bond stretches and soft torsions, but it is not guaranteed to outperform LBFGS for every system.
+
+When Numba is available, MLIP Studio uses an accelerated Lindh Hessian builder. Molecular and periodic systems share the sparse primitive accumulator and closed-form torsion derivatives, while molecular systems retain the original spectral eigenvalue-floor regularization. For medium organic molecules such as ibuprofen this avoids Python-level torsion B-matrix loops and reduces repeated model-Hessian build time from seconds to milliseconds after the first JIT compilation.
+
+Citation: R. Lindh, A. Bernhardsson, G. Karlstrom, and P.-A. Malmqvist, "On the use of a Hessian model function in molecular geometry optimizations", Chemical Physics Letters 241, 423-428 (1995).
+
+### MACE Hessian LBFGS Optimizer
+
+`MACE Hessian LBFGS` uses the analytical Cartesian Hessian returned by MACE as the L-BFGS preconditioner. The Hessian is symmetrized, restricted to active Cartesian coordinates, and regularized by flooring small or negative eigenvalues before the preconditioner solve. This keeps the method in the quasi-Newton family rather than taking raw Newton steps. It rebuilds the Hessian at each cycle and uses maximum-displacement clipping with no line search.
+
+For non-MACE target calculators, the app can use a separate MACE model only for Hessian construction while retaining the selected model for energies and forces. The optimizer supports molecular, periodic fixed-cell, and cell plus geometry optimization. For cell filters, the Cartesian Hessian preconditions the atomic block and a regularized diagonal block handles cell degrees of freedom.
+
+### MACE-Seed LBFGS Optimizer
+
+`MACE-Seed LBFGS` uses one regularized MACE OMAT Small analytical Hessian at the starting geometry and then updates curvature with ordinary L-BFGS force-difference pairs. It performs no Wolfe or Armijo line search. Each cycle therefore evaluates exactly one new target-model force, matching ASE LBFGS's force-call order.
+
+The step radius is adjusted from the energy and force response already available at the next cycle, without evaluating extra trial geometries. If the initial MACE inverse-Hessian action is locally misleading, its weight is reduced toward ASE's conservative scalar LBFGS initialization while valid positive-curvature history is retained.
+
+## Programmatic Optimizer Use
+
+The optimizer package exposes stable names for the three methods shown in the app and manuscript:
+
+Run the example from the repository root (or add that directory to `PYTHONPATH`). Importing `optimizers` does not initialize MACE or PyTorch. All three methods avoid line-search trial geometries and require one new target-calculator force evaluation per optimization cycle; Lindh Hessian needs no auxiliary ML model, MACE Hessian evaluates its Hessian provider at the requested rebuild interval, and MACE-Seed evaluates that provider only once at the starting geometry.
+
+```python
+from ase.io import read
+from mace.calculators import mace_mp
+from model_config import MACE_MODELS
+from optimizers import LindhHessianLBFGS, MACEHessianLBFGS, MACESeedLBFGS
+
+atoms = read("structure.xyz")
+atoms.calc = target_calculator  # Any ASE calculator for energies and forces.
+
+# Lindh model Hessian, rebuilt every cycle; molecules or fixed-cell periodic systems.
+opt = LindhHessianLBFGS(atoms, maxstep=0.20, memory=20, logfile="-")
+opt.run(fmax=0.01, steps=400)
+
+# Use OMAT Small only as an analytical-Hessian provider.
+hessian_calc = mace_mp(
+    model=MACE_MODELS["MACE OMAT Small"],
+    device="cuda",
+    default_dtype="float32",
+)
+
+opt = MACEHessianLBFGS(
+    atoms,
+    hessian_calculator=hessian_calc,
+    hessian_calculator_label="MACE OMAT Small",
+    eigenvalue_floor=0.10,
+    rebuild_interval=1,
+    maxstep=0.20,
+    memory=20,
+    logfile="-",
+)
+opt.run(fmax=0.01, steps=400)
+
+opt = MACESeedLBFGS(
+    atoms,
+    hessian_calculator=hessian_calc,
+    hessian_calculator_label="MACE OMAT Small",
+    eigenvalue_floor=0.10,
+    maxstep=0.20,
+    memory=20,
+    logfile="-",
+)
+opt.run(fmax=0.01, steps=400)
+```
+
+The Lindh implementation is in `optimizers/lindh.py`; analytical MACE Hessian and seed implementations are in `optimizers/analytical_hessian.py`; shared line-search-free step logic is in `optimizers/fixed_step.py`; and public imports are defined in `optimizers/__init__.py`. The downloadable package exposes only the three released optimizer classes.
 
 ## Supported Models
 
@@ -165,6 +240,7 @@ Note that MLIP Studio provides access to several third-party model families, cal
 | --- | --- |
 | `Home.py` | Main Streamlit application |
 | `model_config.py` | Supported model definitions, model URLs/identifiers, citations, and sample structure list |
+| `optimizers/` | Reusable Lindh and analytical-MACE Hessian LBFGS implementations |
 | `sample_structures/` | Example molecules, crystals, surfaces, and interfaces |
 | `requirements.txt` | Python dependencies |
 | `Dockerfile` | Container build recipe |

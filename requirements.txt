@@ -36,3 +36,4 @@ ray
 ray[serve]
 hydra-core
 torchtnt
+numba

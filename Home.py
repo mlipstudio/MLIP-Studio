@@ -30,6 +30,9 @@ from ase.optimize import BFGS, LBFGS, FIRE, LBFGSLineSearch, BFGSLineSearch, GPM
 from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG
 from ase.optimize.basin import BasinHopping
 from ase.optimize.minimahopping import MinimaHopping
+from optimizers import LindhHessianLBFGS, MACEHessianLBFGS, MACESeedLBFGS
+from optimizers.analytical_hessian import AnalyticalHessianError
+from optimizers.lindh import LindhError
 from ase.units import kB
 from ase.constraints import FixAtoms
 from ase.filters import FrechetCellFilter
@@ -1344,17 +1347,37 @@ def write_single_frame_extxyz(atoms):
     write(buf, atoms, format="extxyz")   # <-- ASE writes this frame alone
     return buf.getvalue()
 
+def get_wrapped_atoms(optimizable):
+    return getattr(optimizable, "atoms", optimizable)
+
+def force_fmax(forces):
+    forces = np.asarray(forces)
+    return float(np.max(np.linalg.norm(forces, axis=1))) if forces.shape[0] > 0 else 0.0
+
+def optimizer_fmax(optimizable):
+    return force_fmax(optimizable.get_forces())
+
+def atomic_fmax(optimizable):
+    return force_fmax(get_wrapped_atoms(optimizable).get_forces())
+
 def streamlit_log(opt):
     global opt_log, table_placeholder
     try:
-        energy = opt.atoms.get_potential_energy(force_consistent=False)
-        forces = opt.atoms.get_forces()
-        fmax_step = np.max(np.linalg.norm(forces, axis=1)) if forces.shape[0] > 0 else 0.0
-        opt_log.append({
-            "Step": opt.nsteps,
+        optimizable = opt.atoms
+        energy = get_wrapped_atoms(optimizable).get_potential_energy()
+        opt_fmax_step = optimizer_fmax(optimizable)
+        atom_fmax_step = atomic_fmax(optimizable)
+        step = opt.get_number_of_steps() if hasattr(opt, "get_number_of_steps") else opt.nsteps
+        row = {
+            "Step": step,
             "Energy (eV)": round(energy, 6),
-            "Fmax (eV/Å)": round(fmax_step, 6)
-        })
+            "Optimizer Fmax": round(opt_fmax_step, 6),
+            "Atomic Fmax (eV/A)": round(atom_fmax_step, 6),
+        }
+        if opt_log and opt_log[-1].get("Step") == step:
+            opt_log[-1] = row
+        else:
+            opt_log.append(row)
         df = pd.DataFrame(opt_log)
         table_placeholder.dataframe(df)
     except Exception as e:
@@ -2040,7 +2063,23 @@ if "Optimization" in task:
         max_steps = st.sidebar.slider("Maximum Steps:", min_value=1, max_value=1000, value=50, step=1)
         fmax = st.sidebar.slider("Convergence Threshold (eV/Å):", min_value=0.001, max_value=0.1, value=0.01, step=0.001, format="%.3f")
         # optimizer_type = st.sidebar.selectbox("Optimizer:", ["BFGS", "LBFGS", "FIRE"], index=1)
-        optimizer_type = st.sidebar.selectbox("Optimizer:", ["BFGS", "BFGSLineSearch", "LBFGS", "LBFGSLineSearch", "FIRE", "GPMin", "MDMin", "FASTMSO"], index=2)
+        optimizer_type = st.sidebar.selectbox(
+            "Optimizer:",
+            [
+                "BFGS",
+                "BFGSLineSearch",
+                "LBFGS",
+                "LBFGSLineSearch",
+                "FIRE",
+                "GPMin",
+                "MDMin",
+                "FASTMSO",
+                "Lindh Hessian LBFGS",
+                "MACE Hessian LBFGS",
+                "MACE-Seed LBFGS",
+            ],
+            index=2,
+        )
         if optimizer_type == "FASTMSO":
             st.sidebar.markdown(
                         """
@@ -2059,6 +2098,99 @@ if "Optimization" in task:
                 "MDMin → LBFGS force threshold (eV/Å)",
                 value=0.25
             )
+
+        elif optimizer_type == "Lindh Hessian LBFGS":
+            st.sidebar.caption(
+                "Lindh model-Hessian preconditioning with no line search and "
+                "one target force evaluation per cycle."
+            )
+            with st.sidebar.expander("Advanced Lindh Hessian LBFGS settings"):
+                lindh_maxstep = st.number_input(
+                    "Maximum atomic step (A)", min_value=0.001, max_value=1.0,
+                    value=0.20, step=0.01, format="%.3f",
+                )
+                lindh_memory = st.number_input(
+                    "L-BFGS memory", min_value=1, max_value=200, value=20, step=1,
+                )
+                lindh_rebuild_interval = st.number_input(
+                    "Hessian rebuild interval", min_value=1, max_value=50,
+                    value=1, step=1,
+                )
+                lindh_eigenvalue_floor = st.number_input(
+                    "Regularization floor/shift (eV/A^2)", min_value=1.0e-5,
+                    max_value=10.0, value=0.10, step=0.01, format="%.5f",
+                )
+                lindh_diagnostic_logging = st.checkbox(
+                    "Enable diagnostic logging", value=False,
+                )
+        elif optimizer_type == "MACE Hessian LBFGS":
+            mace_hessian_provider_model = None
+            if model_type != "MACE":
+                st.sidebar.info(
+                    "The selected target model still provides energies and forces. "
+                    "A MACE model is used only for analytical-Hessian construction."
+                )
+                mace_hessian_provider_options = list(MACE_MODELS.keys())
+                default_provider = "MACE OMAT Small"
+                mace_hessian_provider_model = st.sidebar.selectbox(
+                    "MACE Hessian provider:",
+                    mace_hessian_provider_options,
+                    index=(
+                        mace_hessian_provider_options.index(default_provider)
+                        if default_provider in mace_hessian_provider_options else 0
+                    ),
+                )
+            st.sidebar.caption(
+                "Analytical MACE-Hessian preconditioning with no line search and "
+                "one new target geometry per cycle."
+            )
+            with st.sidebar.expander("Advanced MACE Hessian LBFGS settings"):
+                mace_hessian_maxstep = st.number_input(
+                    "Maximum atomic step (A)", min_value=0.001, max_value=1.0,
+                    value=0.20, step=0.01, format="%.3f",
+                )
+                mace_hessian_memory = st.number_input(
+                    "L-BFGS memory", min_value=1, max_value=200, value=20, step=1,
+                )
+                mace_hessian_rebuild_interval = st.number_input(
+                    "Analytical Hessian rebuild interval", min_value=1,
+                    max_value=50, value=1, step=1,
+                )
+                mace_hessian_eigenvalue_floor = st.number_input(
+                    "Eigenvalue floor (eV/A^2)", min_value=1.0e-5,
+                    max_value=10.0, value=0.10, step=0.01, format="%.5f",
+                )
+                mace_hessian_diagnostic_logging = st.checkbox(
+                    "Enable analytical Hessian diagnostic logging", value=False,
+                )
+        elif optimizer_type == "MACE-Seed LBFGS":
+            st.sidebar.caption(
+                "One initial MACE OMAT Small Hessian, no line search, and one "
+                "target force evaluation per cycle."
+            )
+            with st.sidebar.expander("Advanced MACE-Seed LBFGS settings"):
+                mace_seed_maxstep = st.number_input(
+                    "Maximum atomic step (A)", min_value=0.001, max_value=1.0,
+                    value=0.20, step=0.01, format="%.3f",
+                )
+                mace_seed_initial_radius = st.number_input(
+                    "Initial adaptive step radius (A)", min_value=0.001,
+                    max_value=1.0, value=0.10, step=0.01, format="%.3f",
+                )
+                mace_seed_minimum_radius = st.number_input(
+                    "Minimum adaptive step radius (A)", min_value=0.001,
+                    max_value=1.0, value=0.01, step=0.005, format="%.3f",
+                )
+                mace_seed_memory = st.number_input(
+                    "L-BFGS memory", min_value=1, max_value=200, value=20, step=1,
+                )
+                mace_seed_eigenvalue_floor = st.number_input(
+                    "Initial Hessian eigenvalue floor (eV/A^2)", min_value=1.0e-5,
+                    max_value=10.0, value=0.10, step=0.01, format="%.5f",
+                )
+                mace_seed_diagnostic_logging = st.checkbox(
+                    "Enable initial Hessian diagnostic logging", value=False,
+                )
 
 if "Equation of State" in task:
     st.sidebar.info("⚠️ **Note:** For accurate bulk modulus calculations, please use an optimized/relaxed structure. "
@@ -3957,6 +4089,22 @@ if atoms is not None:
                     elif "Geometry Optimization" in task: # Handles both Geometry and Cell+Geometry Opt
                         t0 = time.perf_counter()
                         is_periodic = any(calc_atoms.pbc)
+                        if task == "Cell + Geometry Optimization" and not is_periodic:
+                            st.warning(
+                                "Cell + Geometry Optimization requires a periodic structure "
+                                "with a valid unit cell. For isolated molecules, use "
+                                "Geometry Optimization."
+                            )
+                            st.stop()
+                        if (
+                            optimizer_type == "Lindh Hessian LBFGS"
+                            and task == "Cell + Geometry Optimization"
+                        ):
+                            st.warning(
+                                "Lindh Hessian LBFGS supports molecular and fixed-cell "
+                                "periodic optimization, but not variable-cell optimization."
+                            )
+                            st.stop()
                         opt_atoms_obj = FrechetCellFilter(calc_atoms) if task == "Cell + Geometry Optimization" else calc_atoms
                         # Create temporary trajectory file
                         traj_filename = tempfile.NamedTemporaryFile(delete=False, suffix=".traj").name
@@ -4004,18 +4152,112 @@ if atoms is not None:
                                 lbfgs_kwargs={"maxstep": 0.2},
                                 )
 
+                        elif optimizer_type == "Lindh Hessian LBFGS":
+                            try:
+                                opt = LindhHessianLBFGS(
+                                    opt_atoms_obj,
+                                    trajectory=traj_filename,
+                                    maxstep=float(lindh_maxstep),
+                                    memory=int(lindh_memory),
+                                    eigenvalue_floor=float(lindh_eigenvalue_floor),
+                                    rebuild_interval=int(lindh_rebuild_interval),
+                                    diagnostic_logging=bool(lindh_diagnostic_logging),
+                                )
+                            except LindhError as exc:
+                                st.warning(str(exc))
+                                st.stop()
+
+                        elif optimizer_type == "MACE Hessian LBFGS":
+                            hessian_calc = None
+                            hessian_calc_label = None
+                            if model_type != "MACE":
+                                try:
+                                    hessian_calc_label = mace_hessian_provider_model
+                                    hessian_calc = get_mace_model(
+                                        MACE_MODELS[hessian_calc_label],
+                                        False,
+                                        device,
+                                        "float32",
+                                    )
+                                except Exception as exc:
+                                    st.error(f"Failed to initialize MACE Hessian provider: {exc}")
+                                    st.stop()
+                            try:
+                                opt = MACEHessianLBFGS(
+                                    opt_atoms_obj,
+                                    trajectory=traj_filename,
+                                    maxstep=float(mace_hessian_maxstep),
+                                    memory=int(mace_hessian_memory),
+                                    eigenvalue_floor=float(mace_hessian_eigenvalue_floor),
+                                    rebuild_interval=int(mace_hessian_rebuild_interval),
+                                    diagnostic_logging=bool(mace_hessian_diagnostic_logging),
+                                    hessian_calculator=hessian_calc,
+                                    hessian_calculator_label=hessian_calc_label,
+                                )
+                            except AnalyticalHessianError as exc:
+                                st.error(str(exc))
+                                st.stop()
+
+                        elif optimizer_type == "MACE-Seed LBFGS":
+                            hessian_calc = None
+                            hessian_calc_label = "MACE OMAT Small"
+                            if model_type != "MACE" or selected_model != hessian_calc_label:
+                                try:
+                                    hessian_calc = get_mace_model(
+                                        MACE_MODELS[hessian_calc_label],
+                                        False,
+                                        device,
+                                        "float32",
+                                    )
+                                except Exception as exc:
+                                    st.error(
+                                        f"Failed to initialize MACE OMAT Small Hessian provider: {exc}"
+                                    )
+                                    st.stop()
+                            try:
+                                opt = MACESeedLBFGS(
+                                    opt_atoms_obj,
+                                    trajectory=traj_filename,
+                                    maxstep=float(mace_seed_maxstep),
+                                    initial_step_radius=float(mace_seed_initial_radius),
+                                    minimum_step_radius=float(mace_seed_minimum_radius),
+                                    memory=int(mace_seed_memory),
+                                    eigenvalue_floor=float(mace_seed_eigenvalue_floor),
+                                    diagnostic_logging=bool(mace_seed_diagnostic_logging),
+                                    hessian_calculator=hessian_calc,
+                                    hessian_calculator_label=hessian_calc_label,
+                                )
+                            except (AnalyticalHessianError, ValueError) as exc:
+                                st.error(str(exc))
+                                st.stop()
+
                         opt.attach(lambda: streamlit_log(opt), interval=1)
                         st.write(f"Running {task.lower()}...")
                         is_converged = opt.run(fmax=fmax, steps=max_steps)
                         
                         energy = calc_atoms.get_potential_energy()
-                        forces = calc_atoms.get_forces()
-                        max_force = np.max(np.sqrt(np.sum(forces**2, axis=1))) if forces.shape[0] > 0 else 0.0
+                        max_force = optimizer_fmax(opt_atoms_obj)
+                        max_atomic_force = atomic_fmax(opt_atoms_obj)
                         
                         results["Final Energy"] = f"{energy:.6f} eV"
-                        results["Final Maximum Force"] = f"{max_force:.6f} eV/Å"
+                        results["Final Optimizer Fmax"] = f"{max_force:.6f}"
+                        results["Final Atomic Maximum Force"] = f"{max_atomic_force:.6f} eV/A"
                         results["Steps Taken"] = opt.get_number_of_steps()
                         results["Converged"] = "Yes" if is_converged else "No"
+                        if (
+                            optimizer_type == "Lindh Hessian LBFGS"
+                            and hasattr(opt, "get_lindh_metadata")
+                        ):
+                            for key, value in opt.get_lindh_metadata().items():
+                                if value is not None:
+                                    results[key] = value
+                        if (
+                            optimizer_type in ("MACE Hessian LBFGS", "MACE-Seed LBFGS")
+                            and hasattr(opt, "get_hessian_metadata")
+                        ):
+                            for key, value in opt.get_hessian_metadata().items():
+                                if value is not None:
+                                    results[key] = value
                         if task == "Cell + Geometry Optimization":
                             results["Final Cell Parameters"] = np.round(calc_atoms.cell.cellpar(), 4).tolist()
                         t1 = time.perf_counter()
