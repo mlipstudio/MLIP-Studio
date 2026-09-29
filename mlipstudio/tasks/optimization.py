@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from importlib.util import find_spec
 from typing import Any, Mapping
 
 import numpy as np
@@ -34,12 +35,29 @@ _SPECIAL_OPTIMIZERS = {
     "MACE-Seed LBFGS": ("optimizers.analytical_hessian", "MACESeedLBFGS"),
 }
 
+# Optional packages, not dependencies: offered only when installed.
+_OPTIONAL_OPTIMIZERS = {
+    "Sella": ("sella", "make_sella"),
+    "geomeTRIC": ("geometric", "GeomeTRICOptimizer"),
+}
+
+_FIXED_CELL_ONLY = ("Lindh Hessian LBFGS", "Sella")
+
 
 def _optimizer_class(name: str) -> type:
     if name in _BUILTIN_OPTIMIZERS:
         return _BUILTIN_OPTIMIZERS[name]
-    if name in _SPECIAL_OPTIMIZERS:
-        module_name, class_name = _SPECIAL_OPTIMIZERS[name]
+    if name in _SPECIAL_OPTIMIZERS or name in _OPTIONAL_OPTIMIZERS:
+        if name in _OPTIONAL_OPTIMIZERS:
+            package, class_name = _OPTIONAL_OPTIMIZERS[name]
+            if find_spec(package) is None:
+                raise TaskCalculationError(
+                    f"The '{name}' optimizer needs the optional '{package}' package, "
+                    "which is not installed."
+                )
+            module_name = "optimizers.external"
+        else:
+            module_name, class_name = _SPECIAL_OPTIMIZERS[name]
         try:
             from importlib import import_module
 
@@ -48,7 +66,11 @@ def _optimizer_class(name: str) -> type:
             raise TaskCalculationError(
                 f"The '{name}' optimizer could not be imported: {exc}"
             ) from exc
-    available = tuple(_BUILTIN_OPTIMIZERS) + tuple(_SPECIAL_OPTIMIZERS)
+    available = (
+        tuple(_BUILTIN_OPTIMIZERS)
+        + tuple(_SPECIAL_OPTIMIZERS)
+        + tuple(n for n, (package, _) in _OPTIONAL_OPTIMIZERS.items() if find_spec(package))
+    )
     raise TaskValidationError(
         f"Unknown optimizer '{name}'. Available: {', '.join(available)}."
     )
@@ -105,10 +127,12 @@ class OptimizationTask(Task):
             raise TaskValidationError("fmax must be greater than zero.")
         if self.steps < 0:
             raise TaskValidationError("steps must be non-negative.")
-        if self.optimize_cell and self.optimizer == "Lindh Hessian LBFGS":
+        if self.optimize_cell and self.optimizer in _FIXED_CELL_ONLY:
             raise TaskValidationError(
-                "Lindh Hessian LBFGS supports fixed-cell atomic optimization only."
+                f"{self.optimizer} supports fixed-cell atomic optimization only."
             )
+        if self.optimizer == "geomeTRIC" and (self.optimize_cell or np.any(atoms.pbc)):
+            raise TaskValidationError("geomeTRIC supports non-periodic molecules only.")
 
         working_atoms, resolved_calculator = prepare_atoms(
             atoms,

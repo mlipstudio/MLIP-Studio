@@ -187,3 +187,39 @@ def test_lindh_optimizer_rejects_cell_optimization():
             optimizer="Lindh Hessian LBFGS", optimize_cell=True
         ).calculate(atoms, ScaledHarmonicCalculator())
 
+
+@pytest.mark.parametrize(("optimizer", "package"), [("Sella", "sella"), ("geomeTRIC", "geometric")])
+def test_optional_optimizers_run_when_installed(optimizer, package):
+    pytest.importorskip(package)
+    from ase.build import molecule
+    from ase.calculators.emt import EMT
+
+    result = mlipstudio.OptimizationTask(optimizer=optimizer, fmax=0.05, steps=100).calculate(
+        molecule("H2O"), EMT()
+    )
+
+    assert result.converged
+    assert result.atomic_max_force < 0.05
+    # Same frame count as the ASE optimizers: the stored start plus one per observer call.
+    assert len(result.trajectory) == result.steps + 2
+    assert {len(frame) for frame in result.trajectory} == {3}
+
+
+def test_missing_optional_optimizer_reports_not_installed(monkeypatch):
+    from mlipstudio.tasks import optimization
+
+    monkeypatch.setattr(optimization, "find_spec", lambda name: None)
+    with pytest.raises(mlipstudio.TaskCalculationError, match="not installed"):
+        optimization._optimizer_class("Sella")
+    with pytest.raises(mlipstudio.TaskValidationError) as unknown:
+        optimization._optimizer_class("Unknown")
+    assert "Sella" not in str(unknown.value) and "geomeTRIC" not in str(unknown.value)
+
+
+def test_geometric_rejects_periodic_structures():
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.75]], cell=[5, 5, 5], pbc=True)
+    with pytest.raises(mlipstudio.TaskValidationError, match="non-periodic"):
+        mlipstudio.OptimizationTask(optimizer="geomeTRIC").calculate(
+            atoms, ScaledHarmonicCalculator()
+        )
+

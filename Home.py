@@ -32,6 +32,7 @@ from ase.optimize.basin import BasinHopping
 from ase.optimize.minimahopping import MinimaHopping
 from optimizers import LindhHessianLBFGS, MACEHessianLBFGS, MACESeedLBFGS
 from optimizers.analytical_hessian import AnalyticalHessianError
+from optimizers.external import GeomeTRICOptimizer, available_external_optimizers, make_sella
 from optimizers.lindh import LindhError
 from ase.units import kB
 from ase.constraints import FixAtoms
@@ -2085,22 +2086,25 @@ if "Optimization" in task:
         max_steps = st.sidebar.slider("Maximum Steps:", min_value=1, max_value=1000, value=50, step=1)
         fmax = st.sidebar.slider("Convergence Threshold (eV/Å):", min_value=0.001, max_value=0.1, value=0.01, step=0.001, format="%.3f")
         # optimizer_type = st.sidebar.selectbox("Optimizer:", ["BFGS", "LBFGS", "FIRE"], index=1)
+        # Sella and geomeTRIC are optional packages and are only listed when installed.
+        optimizer_options = [
+            "BFGS",
+            "BFGSLineSearch",
+            "LBFGS",
+            "LBFGSLineSearch",
+            "FIRE",
+            "GPMin",
+            "MDMin",
+            "FASTMSO",
+            "Lindh Hessian LBFGS",
+            "MACE Hessian LBFGS",
+            "MACE-Seed LBFGS",
+            *available_external_optimizers(),
+        ]
         optimizer_type = st.sidebar.selectbox(
             "Optimizer:",
-            [
-                "BFGS",
-                "BFGSLineSearch",
-                "LBFGS",
-                "LBFGSLineSearch",
-                "FIRE",
-                "GPMin",
-                "MDMin",
-                "FASTMSO",
-                "Lindh Hessian LBFGS",
-                "MACE Hessian LBFGS",
-                "MACE-Seed LBFGS",
-            ],
-            index=2,
+            optimizer_options,
+            index=optimizer_options.index("Lindh Hessian LBFGS"),
         )
         if optimizer_type == "FASTMSO":
             st.sidebar.markdown(
@@ -2213,6 +2217,16 @@ if "Optimization" in task:
                 mace_seed_diagnostic_logging = st.checkbox(
                     "Enable initial Hessian diagnostic logging", value=False,
                 )
+        elif optimizer_type == "Sella":
+            st.sidebar.caption(
+                "Sella minimization (order=0) with default settings: internal "
+                "coordinates for molecules, Cartesian for fixed-cell periodic systems."
+            )
+        elif optimizer_type == "geomeTRIC":
+            st.sidebar.caption(
+                "geomeTRIC with default TRIC settings, stopping at the force threshold "
+                "above. Molecules only."
+            )
 
 if "Equation of State" in task:
     st.sidebar.info("⚠️ **Note:** For accurate bulk modulus calculations, please use an optimized/relaxed structure. "
@@ -4242,6 +4256,18 @@ if atoms is not None:
                                 "periodic optimization, but not variable-cell optimization."
                             )
                             st.stop()
+                        if (
+                            optimizer_type in ("Sella", "geomeTRIC")
+                            and task == "Cell + Geometry Optimization"
+                        ):
+                            st.warning(
+                                f"{optimizer_type} is available for Geometry Optimization "
+                                "only, not variable-cell optimization."
+                            )
+                            st.stop()
+                        if optimizer_type == "geomeTRIC" and is_periodic:
+                            st.warning("geomeTRIC supports non-periodic molecules only.")
+                            st.stop()
                         opt_atoms_obj = FrechetCellFilter(calc_atoms) if task == "Cell + Geometry Optimization" else calc_atoms
                         # Create temporary trajectory file
                         traj_filename = tempfile.NamedTemporaryFile(delete=False, suffix=".traj").name
@@ -4366,6 +4392,16 @@ if atoms is not None:
                                 )
                             except (AnalyticalHessianError, ValueError) as exc:
                                 st.error(str(exc))
+                                st.stop()
+
+                        elif optimizer_type == "Sella":
+                            opt = make_sella(opt_atoms_obj, trajectory=traj_filename)
+
+                        elif optimizer_type == "geomeTRIC":
+                            try:
+                                opt = GeomeTRICOptimizer(opt_atoms_obj, trajectory=traj_filename)
+                            except ValueError as exc:
+                                st.warning(str(exc))
                                 st.stop()
 
                         opt.attach(lambda: streamlit_log(opt), interval=1)
