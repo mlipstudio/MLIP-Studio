@@ -532,7 +532,7 @@ The public online instance is provided for free community access, but it is not 
 
 ## License
 
-MLIP Studio is released under the Academic Software License. See the [`ASL.md`](ASL.md) file for details.
+MLIP Studio is released under the Academic Software License. See the [`LICENSE.md`](LICENSE.md) file for details.
 
 Note that MLIP Studio provides access to several third-party model families, calculators, and datasets. These upstream components may be distributed under their own licenses or usage terms, which users are responsible for reviewing and following separately.
 

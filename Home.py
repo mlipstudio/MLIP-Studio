@@ -71,9 +71,11 @@ from torch_dftd.torch_dftd3_calculator import TorchDFTD3Calculator
 from upet.calculator import UPETCalculator
 from upet.calculator import PETMADDOSCalculator
 from model_config import (
-    MACE_MODELS, MACE_CITATIONS, FAIRCHEM_MODELS, ORB_MODELS,
+    MACE_MODELS, MACE_CITATIONS, MACE_LICENSES, FAIRCHEM_MODELS, ORB_MODELS,
     MATTERSIM_MODELS, UPET_MODELS, UPET_MODELS_VERSIONS,
-    SEVEN_NET_MODELS, SAMPLE_STRUCTURES, FAIRCHEM_CITATIONS, UPET_CITATIONS, ORB_CITATIONS, MATTERSIM_CITATIONS, SEVEN_NET_CITATIONS
+    SEVEN_NET_MODELS, SAMPLE_STRUCTURES, FAIRCHEM_CITATIONS, UPET_CITATIONS, ORB_CITATIONS, MATTERSIM_CITATIONS, SEVEN_NET_CITATIONS,
+    FAIRCHEM_LICENSES, ORB_LICENSE, MATTERSIM_LICENSE, SEVEN_NET_LICENSE, UPET_LICENSE, UFF_LICENSE, XTB_LICENSE, D3_LICENSE,
+    get_model_license
 )
 from model_consensus import (
     MODEL_CONSENSUS_TASK,
@@ -1829,6 +1831,12 @@ if atoms is not None:
 consensus_selection = None
 if task == MODEL_CONSENSUS_TASK:
     consensus_selection = render_consensus_sidebar(atoms)
+    # Show each distinct license that applies to the selected committee
+    for license_note in dict.fromkeys(
+        note for spec in consensus_selection.model_specs
+        if (note := get_model_license(spec.family, spec.label))
+    ):
+        st.sidebar.info(license_note)
 else:
     st.sidebar.markdown("## Model Selection")
     if mattersim_available:
@@ -1850,10 +1858,8 @@ else:
             selected_model = st.sidebar.selectbox("Select MACE Model:", list(MACE_MODELS.keys()))
             model_path = MACE_MODELS[selected_model]
 
-            if selected_model in ["MACE OMAT Medium", " MACE OMAT Small", "MACE MATPES r2SCAN Medium", "MACE MATPES r2SCAN Medium",
-                                "MACE OMOL-0 XL 4M", "MACE OFF 24 Medium",
-                                "MACE OFF 23 Large", "MACE OFF 23 Medium", "MACE OFF 24 Small", "MACE POLAR 1 S", "MACE POLAR 1 M", "MACE POLAR 1 L"]:
-                st.sidebar.info("Using model under [Academic Software License (ASL)](https://github.com/gabor1/ASL/blob/main/ASL.md).")
+            if selected_model in MACE_LICENSES:
+                st.sidebar.info(MACE_LICENSES[selected_model])
             # Display Citation
             if selected_model in MACE_CITATIONS:
                 st.sidebar.info(MACE_CITATIONS[selected_model])
@@ -1941,8 +1947,9 @@ else:
             st.sidebar.info(FAIRCHEM_CITATIONS[selected_model])
         else:
             st.sidebar.warning("Citation not available for this model.")
+        if selected_model in FAIRCHEM_LICENSES:
+            st.sidebar.info(FAIRCHEM_LICENSES[selected_model])
         if "UMA Small" in selected_model:
-            st.sidebar.info("Meta FAIR [Acceptable Use Policy](https://huggingface.co/facebook/UMA/blob/main/LICENSE) applies.")
             selected_task_type = st.sidebar.selectbox("Select UMA Model Task Type:", ["omol", "omat", "omc", "odac", "oc20"])
             if selected_task_type == "omol" and atoms is not None:
                 is_omol_model = True
@@ -1963,7 +1970,7 @@ else:
             st.sidebar.info(ORB_CITATIONS[selected_model])
         else:
             st.sidebar.warning("Citation not available for this model.")
-        st.sidebar.info("ORB models are licensed under the [Apache License, Version 2.0.](https://github.com/orbital-materials/orb-models/blob/main/LICENSE)")
+        st.sidebar.info(ORB_LICENSE)
         # selected_default_dtype = st.sidebar.selectbox("Select Precision (default_dtype):", ['float32-high', 'float32-highest', 'float64'])
         selected_default_dtype = st.sidebar.selectbox("Select Precision (default_dtype):", ['float32-high', 'float32-highest'])
         if "OMOL" in selected_model and atoms is not None:
@@ -1985,6 +1992,7 @@ else:
             st.sidebar.info(MATTERSIM_CITATIONS[selected_model])
         else:
             st.sidebar.warning("Citation not available for this model.")
+        st.sidebar.info(MATTERSIM_LICENSE)
     if model_type == "SEVEN_NET":
         selected_model = st.sidebar.selectbox("Select SEVENNET Model:", list(SEVEN_NET_MODELS.keys()))
         if selected_model == '7net-mf-ompa':
@@ -2001,6 +2009,7 @@ else:
             st.sidebar.info(SEVEN_NET_CITATIONS[selected_model])
         else:
             st.sidebar.warning("Citation not available for this model.")
+        st.sidebar.info(SEVEN_NET_LICENSE)
     if model_type == "UPET":
         selected_model = st.sidebar.selectbox("Select UPET Model:", list(UPET_MODELS.keys()))
         model_path = UPET_MODELS[selected_model]
@@ -2009,15 +2018,19 @@ else:
             st.sidebar.info(UPET_CITATIONS[selected_model])
         else:
             st.sidebar.warning("Citation not available for this model.")
+        st.sidebar.info(UPET_LICENSE)
         non_conservative = st.sidebar.toggle("Direct (non-conservative forces)?", value=True)
         uncertainty = st.sidebar.toggle("Uncertainty Prediction?", value=False)
     if model_type=="UFF":
         selected_model = "N/A"
+        st.sidebar.info(UFF_LICENSE)
         # st.sidebar.warning('The currently implemented UFF calculator is found to be somewhat unstable in internal tests. Its usage is only recommended for energy value evaluations and not for geometry optimizations.')
     if model_type=="xTB":
         selected_model = "N/A"
+        st.sidebar.info(XTB_LICENSE)
     if model_type=="D3 dispersion":
         selected_model = "N/A"
+        st.sidebar.info(D3_LICENSE)
         # Exchange-correlation functional
         xc_dsip = st.sidebar.text_input("XC Functional", value="PBE")
         st.sidebar.info('You can get the codes of supported XC functionals from this [link]([https://github.com/pfnet-research/torch-dftd/blob/master/torch_dftd/dftd3_xc_params.py).')

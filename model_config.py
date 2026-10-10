@@ -24,6 +24,68 @@ MACE_MODELS = {
     "MACE POLAR 1 M": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_polar_1/MACE-POLAR-1-M.model",
     "MACE POLAR 1 L": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_polar_1/MACE-POLAR-1-L.model"
 }
+# Licenses as stated in the ACEsuit mace / mace-mp / mace-foundations / mace-off READMEs and release notes.
+_MACE_ASL = "Using model under [Academic Software License (ASL)](https://github.com/gabor1/ASL/blob/main/ASL.md)."
+_MACE_MIT = "Using model under the [MIT License](https://github.com/ACEsuit/mace/blob/main/LICENSE.md)."
+MACE_LICENSES = {
+    "MACE MPA Medium": _MACE_MIT,
+    "MACE OMAT Medium": _MACE_ASL,
+    "MACE OMAT Small": _MACE_ASL,
+    "MACE MATPES r2SCAN Medium": _MACE_ASL,
+    "MACE MATPES PBE Medium": _MACE_ASL,
+    "MACE MP 0a Small": _MACE_MIT,
+    "MACE MP 0a Medium": _MACE_MIT,
+    "MACE MP 0a Large": _MACE_MIT,
+    "MACE MP 0b Small": _MACE_MIT,
+    "MACE MP 0b Medium": _MACE_MIT,
+    "MACE MP 0b2 Small": _MACE_MIT,
+    "MACE MP 0b2 Medium": _MACE_MIT,
+    "MACE MP 0b2 Large": _MACE_MIT,
+    "MACE MP 0b3 Medium": _MACE_MIT,
+    "MACE ANI-CC Large (500k)": _MACE_MIT,  # Shipped inside the MIT-licensed ACEsuit/mace repo
+    "MACE OMOL-0 XL 4M": _MACE_ASL,
+    "MACE OMOL-0 XL 1024": _MACE_ASL,
+    "MACE OFF 23 Large": _MACE_ASL,
+    "MACE OFF 23 Medium": _MACE_ASL,
+    "MACE OFF 23 Small": _MACE_ASL,
+    "MACE OFF 24 Medium": _MACE_ASL,
+    "MACE POLAR 1 S": _MACE_ASL,
+    "MACE POLAR 1 M": _MACE_ASL,
+    "MACE POLAR 1 L": _MACE_ASL,
+}
+# Licenses for the other families, as stated in each project's repository / Hugging Face model card.
+_FAIR_UMA = "UMA models are licensed under the [FAIR Chemistry License v1](https://huggingface.co/facebook/UMA/blob/main/LICENSE); use must comply with its Acceptable Use Policy."
+_FAIR_OMOL = "OMol25 eSEN models are licensed under the [FAIR Chemistry License v1](https://huggingface.co/facebook/OMol25); use must comply with its Acceptable Use Policy."
+FAIRCHEM_LICENSES = {
+    "UMA Small 1.2": _FAIR_UMA,
+    "UMA Small 1.1": _FAIR_UMA,
+    "ESEN MD Direct All OMOL": _FAIR_OMOL,
+    "ESEN SM Conserving All OMOL": _FAIR_OMOL,
+    "ESEN SM Direct All OMOL": _FAIR_OMOL,
+}
+ORB_LICENSE = "ORB models are licensed under the [Apache License, Version 2.0.](https://github.com/orbital-materials/orb-models/blob/main/LICENSE)"
+MATTERSIM_LICENSE = "MatterSim models are licensed under the [MIT License](https://github.com/microsoft/mattersim/blob/main/LICENSE.txt)."
+SEVEN_NET_LICENSE = "SevenNet models are licensed under the [MIT License](https://github.com/MDIL-SNU/SevenNet/blob/main/LICENSE)."
+UPET_LICENSE = "UPET/PET models are licensed under the [BSD 3-Clause License](https://github.com/lab-cosmo/upet/blob/main/LICENSE)."
+UFF_LICENSE = "UFF is evaluated with [RDKit](https://www.rdkit.org/), licensed under the [BSD 3-Clause License](https://github.com/rdkit/rdkit/blob/master/license.txt)."
+XTB_LICENSE = "xTB is licensed under the [GNU LGPL v3](https://github.com/grimme-lab/xtb/blob/main/COPYING.LESSER)."
+D3_LICENSE = "Dispersion corrections use [torch-dftd](https://github.com/pfnet-research/torch-dftd), licensed under the [MIT License](https://github.com/pfnet-research/torch-dftd/blob/master/LICENSE)."
+
+
+def get_model_license(family, label):
+    """License notice for a model, using the family names from model_consensus."""
+    if family == "MACE":
+        return MACE_LICENSES.get(label)
+    if family == "FairChem":
+        return FAIRCHEM_LICENSES.get(label)
+    return {
+        "ORB": ORB_LICENSE,
+        "MatterSim": MATTERSIM_LICENSE,
+        "SevenNet": SEVEN_NET_LICENSE,
+        "UPET/PET": UPET_LICENSE,
+    }.get(family)
+
+
 MACE_CITATIONS = {
     # --- MACE-MP (Materials Project) Models ---
     "MACE MP 0a Small": "**Model:** Batatia et al., *J. Chem. Phys.* 163, 184110 (2025) [arXiv:2312.15211]  \n**Data:** Jain et al., *APL Mater.* 1, 011002 (2013) (Materials Project)",
