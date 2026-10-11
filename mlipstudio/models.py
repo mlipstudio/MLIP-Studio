@@ -1,12 +1,13 @@
 """Model catalog and lazy ASE-calculator construction.
 
 Importing this module does not import any model-family runtime.  MACE,
-FairChem, ORB, MatterSim, SevenNet, and UPET are imported only when a caller
-asks to create a calculator from that family.
+FairChem, ORB, MatterSim, SevenNet, UPET, and AIMNet2 are imported only when a
+caller asks to create a calculator from that family.
 """
 
 from __future__ import annotations
 
+import numbers
 from dataclasses import dataclass, field
 from difflib import get_close_matches
 from pathlib import Path
@@ -27,6 +28,7 @@ from model_config import (
     UPET_MODELS,
     UPET_MODELS_VERSIONS,
 )
+from aimnet2_legacy import AIMNET2_CITATIONS, AIMNET2_MODELS
 
 from .exceptions import (
     ModelConfigurationError,
@@ -143,6 +145,16 @@ def _build_catalog() -> dict[str, ModelSpec]:
             citation=SEVEN_NET_CITATIONS.get(name),
             required_parameters=("modal",) if requires_modal else (),
             allowed_parameters=("modal",),
+        )
+
+    for name, identifier in AIMNET2_MODELS.items():
+        catalog[name] = ModelSpec(
+            name=name,
+            family="AIMNet2",
+            identifier=identifier,
+            citation=AIMNET2_CITATIONS.get(name),
+            default_parameters={"charge": 0},
+            allowed_parameters=("charge",),
         )
 
     catalog["QM9-Gap"] = ModelSpec(
@@ -267,6 +279,25 @@ def _create_sevennet(spec: ModelSpec, device: str, parameters: Mapping[str, Any]
     return SevenNetCalculator(model=spec.identifier, device=device, **parameters)
 
 
+def _create_aimnet2(spec: ModelSpec, device: str, parameters: Mapping[str, Any]) -> Any:
+    charge = parameters["charge"]
+    if isinstance(charge, bool) or not isinstance(charge, numbers.Integral):
+        raise ModelConfigurationError(f"charge must be an integer, got {charge!r}.")
+    import aimnet  # noqa: F401  # optional: pip install --no-deps aimnet==0.0.1
+    import torch
+
+    # aimnet 0.0.1 chooses its own device and always uses CUDA when it is available
+    aimnet_device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device != aimnet_device:
+        raise ModelConfigurationError(
+            f"{spec.name} runs on '{aimnet_device}' on this machine (aimnet 0.0.1 always "
+            f"uses CUDA when it is available); pass device='{aimnet_device}'."
+        )
+    from aimnet2_legacy import AIMNet2LegacyCalculator
+
+    return AIMNet2LegacyCalculator(model=spec.identifier, charge=int(charge))
+
+
 def _create_inhouse(spec: ModelSpec, device: str, parameters: Mapping[str, Any]) -> Any:
     from .predictors import QM9GapCalculator
 
@@ -286,6 +317,7 @@ _BUILDERS = {
     "MatterSim": _create_mattersim,
     "UPET": _create_upet,
     "SevenNet": _create_sevennet,
+    "AIMNet2": _create_aimnet2,
     "In-House": _create_inhouse,
 }
 

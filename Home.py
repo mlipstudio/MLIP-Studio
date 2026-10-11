@@ -62,6 +62,10 @@ from matplotlib.ticker import MaxNLocator
 mattersim_available = True
 if mattersim_available:
     from mattersim.forcefield import MatterSimCalculator
+from aimnet2_legacy import (
+    AIMNET2_AVAILABLE, AIMNET2_CITATIONS, AIMNET2_LICENSE, AIMNET2_MODELS, AIMNET2_UNSUPPORTED_TASKS,
+    AIMNet2LegacyCalculator, aimnet2_input_error, short_hh_contacts,
+)
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdDetermineBonds
@@ -1839,10 +1843,12 @@ if task == MODEL_CONSENSUS_TASK:
         st.sidebar.info(license_note)
 else:
     st.sidebar.markdown("## Model Selection")
-    if mattersim_available:
-        model_type = st.sidebar.radio("Select Model Type:", ["MACE", "FairChem", "ORB", "SEVEN_NET", "MatterSim", "UPET", "UFF", "D3 dispersion", "xTB", "In-House"])
-    else:
-        model_type = st.sidebar.radio("Select Model Type:", ["MACE", "FairChem", "ORB", "SEVEN_NET", "UPET", "UFF", "D3 dispersion", "xTB", "In-House"])
+    model_type_options = ["MACE", "FairChem", "ORB", "SEVEN_NET", "MatterSim", "UPET", "AIMNet2", "UFF", "D3 dispersion", "xTB", "In-House"]
+    if not mattersim_available:
+        model_type_options.remove("MatterSim")
+    if not AIMNET2_AVAILABLE:
+        model_type_options.remove("AIMNet2")
+    model_type = st.sidebar.radio("Select Model Type:", model_type_options)
 
     is_omol_model = False
     selected_task_type = None # For FairChem UMA
@@ -2049,6 +2055,25 @@ else:
             ["zero", "bj", "zerom", "bjm"],
             index=1
         )
+    if model_type == "AIMNet2":
+        selected_model = st.sidebar.selectbox("Select AIMNet2 Model:", list(AIMNET2_MODELS.keys()))
+        model_path = AIMNET2_MODELS[selected_model]
+        st.sidebar.info(AIMNET2_CITATIONS[selected_model])
+        st.sidebar.info(AIMNET2_LICENSE)
+        st.sidebar.caption(
+            "Closed-shell molecules (neutral or charged) containing H, B, C, N, O, F, Si, P, S, Cl, As, Se, Br and I. "
+            "Periodic systems are not supported."
+        )
+        aimnet2_charge = st.sidebar.number_input("Total Charge", min_value=-10, max_value=10, value=0)
+        if task in AIMNET2_UNSUPPORTED_TASKS:
+            st.error(f"{task} is not available for AIMNet2 models. Please select another task or model.")
+            st.stop()
+        if atoms is not None:
+            atoms.info["charge"] = aimnet2_charge
+            aimnet2_error = aimnet2_input_error(atoms, aimnet2_charge)
+            if aimnet2_error:
+                st.error(aimnet2_error)
+                st.stop()
     if model_type == "In-House":
         selected_model = st.sidebar.selectbox("Select In-House Model:", ['QM9-Gap'])
         model_path = str(Path(__file__).resolve().parent / 'mlipstudio' / 'mlip-studio-qm9-gap.pt')
@@ -2069,6 +2094,9 @@ else:
         st.sidebar.info("GPU is available but CPU was selected.")
     elif device == "cpu" and not torch.cuda.is_available():
         st.sidebar.info("No GPU detected. Using CPU.")
+    if model_type == "AIMNet2" and device == "cpu" and torch.cuda.is_available():
+        st.sidebar.info("AIMNet2 always runs on the GPU when one is available.")
+        device = "cuda"
 
 if "Optimization" in task:
     # st.sidebar.markdown("### Optimization Parameters")
@@ -2351,6 +2379,8 @@ if atoms is not None:
                 st.write(f"**UMA Task Type:** {selected_task_type}")
             if model_type == "MACE":
                 st.write(f"**Dispersion:** {dispersion}")
+            if model_type == "AIMNet2":
+                st.write(f"**Total Charge:** {aimnet2_charge}")
             st.write(f"**Device:** {device}")
 
             st.markdown("### Selected Task")
@@ -2503,6 +2533,8 @@ if atoms is not None:
                         calc = XTBCalculator(xtb_command='xtb', method=xtb_method, debug=True, keep_files=True)
                     elif model_type == "D3 dispersion":
                         calc = TorchDFTD3Calculator(atoms=atoms, device=device, old=old_disp, damping=damping_disp, dtype=torch.float32)
+                    elif model_type == "AIMNet2":
+                        calc = AIMNet2LegacyCalculator(model=model_path, charge=aimnet2_charge)
                     elif model_type == "In-House":   
                         if "HOMO-LUMO" not in task:
                             st.warning('NOTE: The In-House `mlip-studio-qm9-gap.model` only supports HOMO-LUMO gap inference.')
@@ -2963,11 +2995,11 @@ if atoms is not None:
 
                         st.markdown("### Electrostatics: Dipole Moment and Partial Charges")
 
-                        if "MACE POLAR" in selected_model:
+                        if "MACE POLAR" in selected_model or model_type == "AIMNet2":
 
                             st.info(
                                 "This task calculates **dipole moment** (along x, y and z axes) and "
-                                "**partial charges** for each atom using the `MACE POLAR` models."
+                                f"**partial charges** for each atom using the `{'AIMNet2' if model_type == 'AIMNet2' else 'MACE POLAR'}` models."
                             )
 
                             with st.spinner("Computing dipole moment and charges..."):
@@ -3016,16 +3048,16 @@ if atoms is not None:
                         else:
                             st.error(
                                 "Dipole Moment and Partial Charges prediction is only supported by the "
-                                "`MACE POLAR 1` models. Please select a compatible model."
+                                "`MACE POLAR 1` and `AIMNet2` models. Please select a compatible model."
                             )
                     elif task == "Hessian Calculation":
 
                         st.markdown("### Analytical Hessian")
 
-                        if "MACE" in model_type:
+                        if "MACE" in model_type or model_type == "AIMNet2":
 
                             st.info(
-                                "This task calculates the **Hessian** analytically using the `MACE` models."
+                                f"This task calculates the **Hessian** analytically using the `{model_type}` models."
                             )
 
                             if len(calc_atoms)>50:
@@ -3157,7 +3189,7 @@ if atoms is not None:
                         else:
                             st.error(
                                 "Analytical Hessian is only supported by the "
-                                "`MACE` models. Please select a compatible model."
+                                "`MACE` and `AIMNet2` models. Please select a compatible model."
                             )
                     
                     elif task == "Spin Determination":
@@ -4446,6 +4478,15 @@ if atoms is not None:
                                     results[key] = value
                         if task == "Cell + Geometry Optimization":
                             results["Final Cell Parameters"] = np.round(calc_atoms.cell.cellpar(), 4).tolist()
+                        if model_type == "AIMNet2":
+                            hh_contacts = short_hh_contacts(calc_atoms)
+                            if hh_contacts:
+                                pairs = ", ".join(f"atoms {i} and {j} ({d:.2f} Å)" for i, j, d in hh_contacts[:5])
+                                st.warning(
+                                    f"Unphysically short H–H distance after optimization: {pairs}. AIMNet2 can "
+                                    "collapse two hydrogens on the same atom into a false minimum when they start "
+                                    "too close together (isayevlab/aimnetcentral#139). Check the starting geometry."
+                                )
                         t1 = time.perf_counter()
                         results["Time Taken"] = f"{t1 - t0:.4f} seconds"
                         st.success("Calculation completed successfully!")
@@ -4769,18 +4810,18 @@ with st.expander('ℹ️ About This App & Foundational MLIPs'):
     st.write("""
     **Test, compare, and benchmark universal machine learning interatomic potentials (MLIPs).**
     This application allows you to perform atomistic simulations using pre-trained foundational MLIPs 
-    from the MACE, MatterSim (Microsoft), SevenNet, Orb (Orbital Materials) and FairChem (Meta AI) developers and researchers.
+    from the MACE, MatterSim (Microsoft), SevenNet, Orb (Orbital Materials), FairChem (Meta AI) and AIMNet2 (Isayev Lab) developers and researchers.
     
     **Features:**
     - Upload/Paste structure files (XYZ, CIF, POSCAR, etc.), import from Materials Project/PubChem or use built-in examples.
-    - Select from various MACE, ORB, SevenNet, MatterSim and FairChem models.
+    - Select from various MACE, ORB, SevenNet, MatterSim, FairChem and AIMNet2 models.
     - Calculate energies, forces, cohesive/atomization energy, vibrational modes and perform geometry/cell optimizations.
     - Visualize atomic structures in 3D and download results, optimized structures and optimization trajectories.
     
     **Quick Start:**
     1.  **Input**: Choose an input method in the sidebar (e.g., "Select Example").
-    2.  **Model**: Pick a model type (MACE/FairChem/MatterSim/ORB/SevenNet) and specific model. For FairChem UMA, select the appropriate task type (e.g., `omol` for molecules, `omat` for materials). 
-    For models trained on OMOL25 dataset (whenever the model name contains `omol`) then the user also needs to provide a charge and spin multiplicity (`2S+1`) value. By default the charge is set to zero and spin multiplicity to 1 (S=0).
+    2.  **Model**: Pick a model type (MACE/FairChem/MatterSim/ORB/SevenNet/AIMNet2) and specific model. For FairChem UMA, select the appropriate task type (e.g., `omol` for molecules, `omat` for materials). 
+    For models trained on OMOL25 dataset (whenever the model name contains `omol`) then the user also needs to provide a charge and spin multiplicity (`2S+1`) value. By default the charge is set to zero and spin multiplicity to 1 (S=0). AIMNet2 models only take a total charge and support closed-shell molecules.
     3.  **Task**: Select a calculation task (e.g., "Energy Calculation", "Atomization/Cohesive Energy", "Geometry Optimization").
     4.  **Run**: Click "Run Calculation" and view the results.
 
@@ -4832,7 +4873,7 @@ with st.expander('🔧 Tech Stack & System Information'):
         'mace-torch', 'fairchem-core', 'orb-models', 'sevenn',
         'pandas', 'matplotlib', 'scipy', 'yaml', 'huggingface-hub', 
         'upet', 'metatrain', 'metatensor', 'rdkit', 'metatomic-torch',
-        'hydra-core', 'ray', 'torchtnt', 'pubchempy', 'warp-lang', 
+        'hydra-core', 'ray', 'torchtnt', 'pubchempy', 'warp-lang', 'aimnet', 
         'hf-xet', 'mp_api', 'pymatgen', 'rdkit',
     ]
     
@@ -4877,5 +4918,5 @@ torch.cuda.empty_cache()
 gc.collect()
 
 st.markdown("---")
-st.markdown("Universal MLIP Studio App | Created with Streamlit, ASE, MACE, FairChem, SevenNet, ORB, MatterSim, UPET, Py3DMol, Pymatgen and ❤️")
+st.markdown("Universal MLIP Studio App | Created with Streamlit, ASE, MACE, FairChem, SevenNet, ORB, MatterSim, UPET, AIMNet2, Py3DMol, Pymatgen and ❤️")
 st.markdown("Developed by [Dr. Manas Sharma](https://manas.bragitoff.com/) in the groups of [Prof. Ananth Govind Rajan Group](https://www.agrgroup.org/) and [Prof. Sudeep Punnathanam](https://chemeng.iisc.ac.in/sudeep/) at  [IISc Bangalore](https://iisc.ac.in/)")

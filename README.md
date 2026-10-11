@@ -32,7 +32,7 @@ MLIP Studio addresses this by providing a unified interface for model selection,
 | Structure input | Built-in examples, file upload, pasted structure text, Materials Project ID import, PubChem import, batch upload, and extXYZ trajectory upload |
 | Supported formats | XYZ, extXYZ, CIF, POSCAR/VASP, CONTCAR, MOL, SDF, and Turbomole-style molecular files, through ASE and related parsers |
 | Visualization | Interactive 3D structure viewing with multiple styles such as ball-and-stick, stick, line, and space-filling representations |
-| Model selection | Predefined universal MLIPs, custom MACE model upload, custom MACE model URL loading, UFF, D3 dispersion, xTB, and the in-house QM9 HOMO-LUMO gap model |
+| Model selection | Predefined universal MLIPs, custom MACE model upload, custom MACE model URL loading, optional AIMNet2 models for molecules, UFF, D3 dispersion, xTB, and the in-house QM9 HOMO-LUMO gap model |
 | Single-structure prediction | Energy, forces, stress, atomization energy, cohesive energy, HOMO-LUMO gap, band gap, density of states, dipole moment, partial charges, and Hessian-related outputs where supported |
 | Geometry optimization | Molecular geometry optimization and cell plus geometry optimization using ASE optimizers including BFGS, BFGSLineSearch, LBFGS, LBFGSLineSearch, FIRE, GPMin, MDMin, FASTMSO, Lindh Hessian LBFGS (default), MACE Hessian LBFGS, and MACE-Seed LBFGS. Sella and geomeTRIC are also offered, with their default settings, when the optional `sella` or `geometric` packages are installed; they are not dependencies |
 | Hessian-guided optimizers | Line-search-free Lindh Hessian, MACE Hessian, and MACE-Seed LBFGS methods. Across the 30-molecule Baker set with MACE OMAT Medium, MACE POLAR 1 L, and UMA OMOL s1.2 at `fmax=0.01 eV/A`, Lindh Hessian reduced mean optimization cycles by 71.8% to 76.7% (3.54x to 4.30x), while MACE Hessian reduced them by 53.9% to 80.9% (2.17x to 5.23x), relative to standard LBFGS; both converged all 90 runs. |
@@ -122,9 +122,9 @@ The Lindh implementation is in `optimizers/lindh.py`; analytical MACE Hessian an
 ## Programmatic API
 
 The repository includes a UI-independent `mlipstudio` package. It
-can discover the 62 universal models without importing their heavyweight
-runtimes, construct calculators lazily, and run the task APIs described below
-on an `ase.Atoms` object.
+can discover the 62 universal models and the 2 optional AIMNet2 models without
+importing their heavyweight runtimes, construct calculators lazily, and run the
+task APIs described below on an `ase.Atoms` object.
 
 Run the complete installation and API showcase in Google Colab:
 
@@ -159,6 +159,23 @@ Tasks copy their input by default and results contain raw numerical values in
 ASE units. UMA models require an explicit `task_name` parameter, and multimodal
 SevenNet models require an explicit `modal` parameter. The detailed extraction,
 packaging, MD, and NEB plan is in `mlipstudio/API_DESIGN.md`.
+
+The AIMNet2 models, `AIMNet2 (wB97M-D3)` and `AIMNet2 (B97-3c)`, need
+`pip install --no-deps aimnet==0.0.1`. They accept an integer `charge`, used
+whenever `atoms.info` has no `"charge"` entry, and support closed-shell,
+non-periodic molecules only. `aimnet` 0.0.1 always runs on CUDA when it is
+available, so pass `device="cuda"` on GPU machines and `device="cpu"` otherwise:
+
+```python
+from ase.build import molecule
+import mlipstudio
+
+calculator = mlipstudio.create_calculator("AIMNet2 (wB97M-D3)", device="cuda", charge=0)
+result = mlipstudio.SinglePointTask(properties=("energy", "forces")).calculate(
+    molecule("C6H6"),
+    calculator,
+)
+```
 
 ### Hessians, Vibrations, EOS, and Consensus
 
@@ -356,11 +373,14 @@ task = mlipstudio.AtomizationCohesiveEnergyTask(
 ```
 
 Missing element references raise an error rather than being treated as zero.
-Every result records the table or calculation strategy used.
+Every result records the table or calculation strategy used. AIMNet2 models are
+closed-shell and cannot evaluate isolated atoms, so they require
+`isolated_atom_energies` or `reference_set`.
 
 ### Dipole Moment and Partial Charges
 
-Dipole and charge prediction is registered for MACE-POLAR models:
+Dipole and charge prediction is registered for MACE-POLAR and AIMNet2 models.
+AIMNet2 requires `spin_multiplicity=1` and no external field:
 
 ```python
 from ase.build import molecule
@@ -405,6 +425,7 @@ MLIP Studio currently includes 62 predefined universal MLIP models from six majo
 | UFF | Classical Universal Force Field calculator, currently recommended mainly for energy evaluation. |
 | D3 dispersion | Standalone DFT-D2/DFT-D3 style dispersion correction through `torch-dftd`. |
 | In-house QM9 gap model | Lightweight message-passing model for HOMO-LUMO gap prediction of QM9-like organic molecules. |
+| AIMNet2 (optional) | AIMNet2 wB97M-D3 and B97-3c neural network potentials for closed-shell molecules, neutral or charged, containing H, B, C, N, O, F, Si, P, S, Cl, As, Se, Br and I. In the app they provide energies, forces, partial charges, dipole moments, analytical Hessians, geometry optimization and vibrational analysis; periodic systems are not supported. Install with `pip install --no-deps aimnet==0.0.1` (see [Local Setup](#local-setup)); the option appears only when `aimnet` is installed. Also available in the [programmatic API](#programmatic-api). |
 
 ## Typical Workflows
 
@@ -496,10 +517,13 @@ pip install --no-deps fairchem-core==2.16.0 --ignore-requires-python
 pip install -r requirements.txt
 pip install --no-deps "upet@git+https://github.com/lab-cosmo/upet.git" --ignore-requires-python
 pip install --no-deps "git+https://github.com/WillBaldwin0/graph_electrostatics.git" --ignore-requires-python
+pip install --no-deps aimnet==0.0.1
 streamlit run Home.py
 ```
 
 These commands mirror the dependency installation order used in the provided Dockerfile.
+
+The `aimnet==0.0.1` line is optional and adds the AIMNet2 models. Install it with `--no-deps`: everything it needs at runtime is already installed by the earlier steps, and newer `aimnet` releases require Python 3.11+ and PyTorch 2.8+. The model files (about 12 MB each) are downloaded on first use. On a machine with a visible GPU, this `aimnet` release always runs on the GPU.
 
 The app will start locally at the URL printed by Streamlit, usually:
 
@@ -526,7 +550,7 @@ For GPU-enabled Docker deployments, make sure the host has the NVIDIA Container 
 
 ## Notes on Model Access and Licenses
 
-Some upstream models may require accepting their original license terms or acceptable-use policies before use. Users are responsible for respecting the licenses of the underlying model families and datasets, including MACE, FAIRChem/UMA, ORB, MatterSim, SevenNet, PET/UPET, xTB, UFF, and related dependencies.
+Some upstream models may require accepting their original license terms or acceptable-use policies before use. Users are responsible for respecting the licenses of the underlying model families and datasets, including MACE, FAIRChem/UMA, ORB, MatterSim, SevenNet, PET/UPET, AIMNet2, xTB, UFF, and related dependencies.
 
 The public online instance is provided for free community access, but it is not intended for unlimited production workloads. For large systems, long trajectories, private data, or unrestricted benchmarking, run MLIP Studio locally.
 

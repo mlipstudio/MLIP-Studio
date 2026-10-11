@@ -67,7 +67,8 @@ class AtomizationCohesiveEnergyTask(Task):
     Explicit isolated-atom energies take precedence. Otherwise a named bundled
     reference set may be requested. In automatic mode, FairChem calculators use
     the table matching their task name and other calculators evaluate isolated
-    atoms directly with the same loaded calculator.
+    atoms directly with the same loaded calculator. AIMNet2 models are
+    closed-shell, so they need explicit or bundled references.
     """
 
     calculation_type: str = "auto"
@@ -193,6 +194,11 @@ class AtomizationCohesiveEnergyTask(Task):
             table_name = f"{task_name}_elem_refs"
             references = self._references_from_table(table_name, atomic_numbers_needed)
             source = f"bundled:{table_name}"
+        elif getattr(calculator, "_mlipstudio_model_family", None) == "AIMNet2":
+            raise TaskValidationError(
+                "AIMNet2 models are closed-shell and cannot evaluate isolated atoms; "
+                "pass isolated_atom_energies or reference_set."
+            )
         else:
             references = self._calculate_isolated_references(
                 calculator,

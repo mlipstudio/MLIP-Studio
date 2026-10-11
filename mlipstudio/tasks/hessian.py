@@ -1,4 +1,4 @@
-"""Analytical Cartesian Hessians from compatible MACE calculators."""
+"""Analytical Cartesian Hessians from compatible MACE or AIMNet2 calculators."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class AnalyticalHessianResult:
 
 @dataclass(frozen=True)
 class AnalyticalHessianTask(Task):
-    """Evaluate the exact model Hessian exposed by a MACE calculator.
+    """Evaluate the exact model Hessian exposed by a MACE or AIMNet2 calculator.
 
     The calculator must provide ``get_hessian(atoms=...)``.  The task checks
     the capability instead of importing MACE, which keeps the public API
@@ -68,7 +68,7 @@ class AnalyticalHessianTask(Task):
         if not callable(get_hessian):
             raise TaskValidationError(
                 "AnalyticalHessianTask requires a calculator with "
-                "get_hessian(atoms=...), such as a compatible MACE calculator."
+                "get_hessian(atoms=...), such as a compatible MACE or AIMNet2 calculator."
             )
 
         started = time.perf_counter()

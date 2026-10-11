@@ -46,7 +46,7 @@ class DipoleMomentResult:
 
 @dataclass(frozen=True)
 class DipoleMomentTask(Task):
-    """Calculate dipole and partial charges using a compatible MACE-POLAR model."""
+    """Calculate dipole and partial charges using a MACE-POLAR or AIMNet2 model."""
 
     charge: int = 0
     spin_multiplicity: int = 1
@@ -69,10 +69,19 @@ class DipoleMomentTask(Task):
             copy_atoms=self.copy_atoms,
         )
         model_name = getattr(resolved_calculator, "_mlipstudio_model_name", None)
-        if model_name is not None and not model_name.startswith("MACE POLAR"):
+        if model_name is not None and not model_name.startswith(("MACE POLAR", "AIMNet2")):
             raise TaskValidationError(
                 f"{model_name} is not registered for dipole/partial-charge prediction."
             )
+        if getattr(resolved_calculator, "_mlipstudio_model_family", None) == "AIMNet2":
+            if self.spin_multiplicity != 1:
+                raise TaskValidationError(
+                    "AIMNet2 models are closed-shell; spin_multiplicity must be 1."
+                )
+            if np.any(field != 0.0):
+                raise TaskValidationError(
+                    "AIMNet2 models do not support an external electric field."
+                )
 
         working_atoms.info["charge"] = self.charge
         working_atoms.info["total_charge"] = self.charge

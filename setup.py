@@ -27,7 +27,7 @@ setup(
     packages=find_packages(
         include=("mlipstudio", "mlipstudio.*", "optimizers", "optimizers.*")
     ),
-    py_modules=("model_config",),
+    py_modules=("model_config", "aimnet2_legacy"),
     package_data={
         "mlipstudio": (
             "mlip-studio-qm9-gap.pt",

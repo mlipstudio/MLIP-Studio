@@ -30,8 +30,9 @@ class HarmonicCalculator(Calculator):
 def test_model_catalog_is_lightweight_and_contains_all_universal_models():
     models = mlipstudio.list_models()
 
-    assert len(models) == 63
-    assert len([model for model in models if model.family != "In-House"]) == 62
+    assert len(models) == 65
+    assert len([model for model in models if model.family not in {"In-House", "AIMNet2"}]) == 62
+    assert len(mlipstudio.list_models("aimnet2")) == 2
     assert mlipstudio.get_model_spec("MACE MPA Medium").family == "MACE"
     assert len(mlipstudio.list_models("orb")) == 10
 
