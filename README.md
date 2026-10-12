@@ -71,28 +71,35 @@ The step radius is adjusted from the energy and force response already available
 
 The optimizer package exposes stable names for the three methods shown in the app and manuscript:
 
-Run the example from the repository root (or add that directory to `PYTHONPATH`). Importing `optimizers` does not initialize MACE or PyTorch. All three methods avoid line-search trial geometries and require one new target-calculator force evaluation per optimization cycle; Lindh Hessian needs no auxiliary ML model, MACE Hessian evaluates its Hessian provider at the requested rebuild interval, and MACE-Seed evaluates that provider only once at the starting geometry.
+The `optimizers` package is installed together with `mlipstudio` (see [API-Only Installation](#api-only-installation)), so the example below runs from any working directory. Importing `optimizers` does not initialize MACE or PyTorch. All three methods avoid line-search trial geometries and require one new target-calculator force evaluation per optimization cycle; Lindh Hessian needs no auxiliary ML model, MACE Hessian evaluates its Hessian provider at the requested rebuild interval, and MACE-Seed evaluates that provider only once at the starting geometry.
 
 ```python
-from ase.io import read
-from mace.calculators import mace_mp
-from model_config import MACE_MODELS
+import torch
+from ase.build import molecule
+
+import mlipstudio
 from optimizers import LindhHessianLBFGS, MACEHessianLBFGS, MACESeedLBFGS
 
-atoms = read("structure.xyz")
-atoms.calc = target_calculator  # Any ASE calculator for energies and forces.
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Slightly distorted ethanol; each optimizer below starts from its own copy.
+initial = molecule("CH3CH2OH")
+initial.rattle(stdev=0.05, seed=0)
+
+# Target calculator for energies and forces. Any ASE calculator works here.
+calculator = mlipstudio.create_calculator("MACE MPA Medium", device=device)
 
 # Lindh model Hessian, rebuilt every cycle; molecules or fixed-cell periodic systems.
+atoms = initial.copy()
+atoms.calc = calculator
 opt = LindhHessianLBFGS(atoms, maxstep=0.20, memory=20, logfile="-")
 opt.run(fmax=0.01, steps=400)
 
 # Use OMAT Small only as an analytical-Hessian provider.
-hessian_calc = mace_mp(
-    model=MACE_MODELS["MACE OMAT Small"],
-    device="cuda",
-    default_dtype="float32",
-)
+hessian_calc = mlipstudio.create_calculator("MACE OMAT Small", device=device)
 
+atoms = initial.copy()
+atoms.calc = calculator
 opt = MACEHessianLBFGS(
     atoms,
     hessian_calculator=hessian_calc,
@@ -105,6 +112,8 @@ opt = MACEHessianLBFGS(
 )
 opt.run(fmax=0.01, steps=400)
 
+atoms = initial.copy()
+atoms.calc = calculator
 opt = MACESeedLBFGS(
     atoms,
     hessian_calculator=hessian_calc,
@@ -116,6 +125,8 @@ opt = MACESeedLBFGS(
 )
 opt.run(fmax=0.01, steps=400)
 ```
+
+To optimize your own structure, replace `molecule("CH3CH2OH")` with `ase.io.read("my_structure.xyz")`.
 
 The Lindh implementation is in `optimizers/lindh.py`; analytical MACE Hessian and seed implementations are in `optimizers/analytical_hessian.py`; shared line-search-free step logic is in `optimizers/fixed_step.py`; and public imports are defined in `optimizers/__init__.py`. The downloadable package exposes only the three released optimizer classes.
 
