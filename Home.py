@@ -4692,16 +4692,11 @@ if atoms is not None:
                         show_trajectory_and_controls()
                     
                     elif task == "Vibrational Mode Analysis":
-                        # Conversion factors
-                        from ase.units import kB as kB_eVK, _Nav, J  # ASE's constants
-                        from scipy.constants import physical_constants
-                        kB_JK = physical_constants["Boltzmann constant"][0]  # J/K
+                        from mlipstudio.vibrational_analysis import analyze_vibrational_modes
                         is_periodic = any(calc_atoms.pbc)
                         st.write("Running vibrational mode analysis using finite differences...")
 
                         natoms = len(calc_atoms)
-                        is_linear = False  # Set manually or auto-detect
-                        nmodes_expected = 3 * natoms - (5 if is_linear else 6)
 
                         # Create temporary directory to store .vib files
                         with tempfile.TemporaryDirectory() as tmpdir:
@@ -4710,7 +4705,6 @@ if atoms is not None:
                             with st.spinner("Calculating vibrational modes... This may take a few minutes."):
                                 vib.run()
                                 freqs = vib.get_frequencies()
-                                energies = vib.get_energies()
                                 
                                 print('\n\n\n\n\n\n\n\n')
                                 # vib.get_hessian_2d()
@@ -4718,22 +4712,18 @@ if atoms is not None:
                                 # print('\n')
                                 # vib.tabulate()
                             
-                            freqs_cm = freqs
-                            freqs_eV = energies
+                            # The smallest |frequencies| are rigid-body modes (count set by the
+                            # system type); imaginary frequencies come back as negative numbers.
+                            vib_analysis = analyze_vibrational_modes(calc_atoms, freqs, temperature_K=T)
+                            freqs_cm = vib_analysis.frequencies_cm_minus1
 
                             # Classify frequencies
                             mode_data = []
-                            for i, freq in enumerate(freqs_cm):
-                                if freq < 0:
-                                    label = "Imaginary"
-                                elif abs(freq) < 500:
-                                    label = "Low"
-                                else:
-                                    label = "Physical"
+                            for i, (freq, mode_type) in enumerate(zip(freqs_cm, vib_analysis.mode_types)):
                                 mode_data.append({
                                     "Mode": i + 1,
-                                    "Frequency (cm⁻¹)": round(freq, 2),
-                                    "Type": label
+                                    "Frequency (cm⁻¹)": round(float(freq), 2),
+                                    "Type": mode_type.capitalize()
                                 })
 
                             df_modes = pd.DataFrame(mode_data)
@@ -4741,11 +4731,18 @@ if atoms is not None:
                             # Display summary and mode count
                             st.success("Vibrational analysis completed.")
                             st.write(f"Number of atoms: {natoms}")
-                            st.write(f"Expected vibrational modes: {nmodes_expected}")
-                            st.write(f"Found {len(freqs_cm)} modes (including translational/rotational modes).")
+                            n_real_vib = vib_analysis.mode_types.count("vibration")
+                            n_imaginary = vib_analysis.mode_types.count("imaginary")
+                            st.write(
+                                f"Found {len(freqs_cm)} modes: {vib_analysis.rigid_body_mode_count} rigid-body "
+                                f"({vib_analysis.rigid_body_reason}), {n_real_vib} vibrations, {n_imaginary} imaginary."
+                            )
+                            for message in vib_analysis.warnings:
+                                st.warning(message)
 
                             # Show table of modes
                             st.write("### Vibrational Mode Summary")
+                            st.caption("Imaginary frequencies are listed as negative numbers.")
                             st.dataframe(df_modes, use_container_width=True)
 
                             # Store in results dictionary
@@ -4772,27 +4769,17 @@ if atoms is not None:
                             # -------- Thermodynamic Analysis for Molecules --------
                         if not is_periodic:
 
-                            # Filter physical frequencies > 1 cm⁻¹ (to avoid numerical issues)
-                            physical_freqs_eV = np.array([f for f in freqs_eV if f > 1e-5])
+                            ZPE = vib_analysis.zero_point_energy_eV
+                            S_vib_eVK = vib_analysis.vibrational_entropy_eV_per_K
+                            S_vib_JmolK = vib_analysis.vibrational_entropy_J_per_mol_K
 
-                            # Zero-point vibrational energy (ZPE)
-                            ZPE = 0.5 * np.sum(physical_freqs_eV)  # in eV
-
-                            # Vibrational entropy (in eV/K)
-                            vib_entropy = 0.0
-                            for f in physical_freqs_eV:
-                                x = f / (kB_eVK * T)
-                                vib_entropy += (x / (np.exp(x) - 1) - np.log(1 - np.exp(-x)))
-
-                            S_vib_eVK = kB_eVK * vib_entropy  # eV/K
-                            S_vib_JmolK = S_vib_eVK * J * _Nav  # J/mol·K
-
-                            results["ZPE (eV)"] = ZPE.real
+                            results["ZPE (eV)"] = ZPE
                             results["Vibrational Entropy (eV/K)"] = S_vib_eVK
                             results["Vibrational Entropy (J/mol·K)"] = S_vib_JmolK
 
-                            st.write(f"**Zero-point vibrational energy (ZPE)**: {ZPE.real:.6f} eV")
-                            st.write(f"**Vibrational entropy**: {S_vib_eVK:.6f} eV/K")
+                            st.write(f"**Zero-point vibrational energy (ZPE)**: {ZPE:.6f} eV")
+                            st.write(f"**Vibrational entropy** at {T:g} K: {S_vib_JmolK:.4f} J/mol·K ({S_vib_eVK:.6e} eV/K)")
+                            st.caption("Rigid-body and imaginary modes are excluded from the ZPE and entropy.")
 
                         else:
                             st.info("Thermodynamic properties like ZPE and entropy are currently only meaningful for isolated molecules (non-periodic systems).")

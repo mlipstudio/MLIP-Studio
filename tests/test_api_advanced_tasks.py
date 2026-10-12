@@ -48,13 +48,16 @@ def test_analytical_hessian_task_returns_matrix_and_diagnostics():
 def test_vibrational_mode_task_returns_modes_and_cleans_scratch_files():
     atoms = Atoms("H", positions=[[0.0, 0.0, 0.0]])
 
-    result = mlipstudio.VibrationalModeTask().calculate(
+    # The harmonic trap binds the atom to the origin, so its three modes are
+    # vibrations rather than free translations.
+    result = mlipstudio.VibrationalModeTask(rigid_body_modes=0).calculate(
         atoms, ScaledHarmonicCalculator()
     )
 
     assert result.frequencies_cm_minus1.shape == (3,)
     assert result.energies_eV.shape == (3,)
     assert result.modes.shape == (3, 1, 3)
+    assert result.mode_types == ("vibration",) * 3
     assert result.imaginary_mode_indices == ()
     assert result.zero_point_energy_eV > 0
     assert result.vibrational_entropy_eV_per_K >= 0

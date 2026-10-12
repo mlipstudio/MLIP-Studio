@@ -239,8 +239,11 @@ images. Design it around `CalculatorFactory`, not one shared calculator:
 
 - `VibrationalModeTask` uses finite-difference forces and therefore needs up to
   six force evaluations per selected atom with `nfree=2`. It intentionally
-  preserves imaginary modes, but translational/rotational projection and a
-  direct analytical-Hessian normal-mode path are not implemented yet.
+  preserves imaginary modes. Rigid-body modes are separated by count, not
+  projected out: the n smallest |frequencies| are translations/rotations, with
+  n detected from the system type or set through `rigid_body_modes`
+  (`mlipstudio/vibrational_analysis.py`, shared with the GUI). A direct
+  analytical-Hessian normal-mode path is not implemented yet.
 - `EquationOfStateTask` is a static isotropic volume scan. It does not relax
   internal coordinates or cell shape at each volume. EOS parameters are only
   trustworthy when the sampled range brackets a well-resolved minimum; users
