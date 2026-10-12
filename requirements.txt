@@ -17,7 +17,7 @@ git+https://github.com/manassharma07/mace_e3nn_new.git@main#egg=mace_e3nn_new
 py3dmol
 huggingface_hub
 hf_xet
-orb-models
+orb-models==0.5.5
 # For matter sim models
 git+https://github.com/microsoft/mattersim.git
 # For sevennet models

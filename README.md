@@ -526,8 +526,8 @@ Install dependencies and run the app:
 pip install --upgrade pip
 pip install --no-deps fairchem-core==2.16.0 --ignore-requires-python
 pip install -r requirements.txt
-pip install --no-deps "upet@git+https://github.com/lab-cosmo/upet.git" --ignore-requires-python
-pip install --no-deps "git+https://github.com/WillBaldwin0/graph_electrostatics.git" --ignore-requires-python
+pip install --no-deps "upet@git+https://github.com/lab-cosmo/upet.git@0b1027fd8ece5b80f9ec84876115b24bb342c50e" --ignore-requires-python
+pip install --no-deps "git+https://github.com/WillBaldwin0/graph_electrostatics.git@v0.4.0" --ignore-requires-python
 pip install --no-deps aimnet==0.0.1
 streamlit run Home.py
 ```
