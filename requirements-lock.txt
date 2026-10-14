@@ -1,0 +1,273 @@
+# MLIP Studio: exact package versions from the production environment of the MLIP Studio web app,
+# where all features have been tested together.
+#
+# Generated:    2026-10-15 from `pip freeze`, reduced to MLIP Studio's dependency tree:
+#               requirements.txt, the --no-deps packages from the Dockerfile, every third-party
+#               import in this repository, and all of their installed dependencies. Unrelated
+#               packages in the same environment are left out.
+# MLIP Studio:  commit a3595b3 of https://github.com/mlipstudio/MLIP-Studio
+# Python:       3.10.9
+# OS:           Windows 11 (build 22631), x86_64
+# GPU:          NVIDIA GeForce RTX 5070, torch 2.7.1+cu128 (CUDA 12.8, cuDNN 9.7.1)
+# External:     xtb 6.7.1pre (5071a88) on PATH, used only by the xTB calculator option
+#
+# Install into a fresh Python 3.10 environment from the repository root:
+#   pip install --no-deps -r requirements-lock.txt
+#   pip install --no-deps .
+#
+# --no-deps is required. fairchem-core, upet, graph_longrange and aimnet were installed with
+# --no-deps because their declared dependencies conflict with the rest of the stack. Four of those
+# declared dependencies (clusterscope, ignite, ninja, nvalchemi-toolkit-ops) are not installed in
+# this environment, and neither are hf-xet and metatomic-ase from requirements.txt.
+#
+# torch is the CUDA 12.8 build, so it comes from the PyTorch index below. For another CUDA version
+# or a CPU-only machine, install the matching torch 2.7.1 build instead.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+absl-py==2.2.2
+aimnet==0.0.1
+aiohappyeyeballs==2.6.1
+aiohttp==3.13.3
+aiohttp-cors==0.8.1
+aioitertools==0.12.0
+aiosignal==1.4.0
+altair==5.5.0
+annotated-doc==0.0.4
+annotated-types==0.7.0
+antlr4-python3-runtime==4.9.3
+anyio==4.12.1
+ase==3.26.0
+ase_db_backends==0.10.0
+async-timeout==5.0.1
+atomate2==0.0.21
+attrs==25.3.0
+azure-core==1.34.0
+azure-identity==1.23.0
+azure-storage-blob==12.25.1
+bcrypt==4.3.0
+bibtexparser==1.4.3
+blinker==1.9.0
+boto3==1.38.23
+botocore==1.38.23
+braceexpand==0.1.7
+cached_path==1.7.3
+cachetools==5.5.2
+certifi==2025.4.26
+cffi==1.17.1
+charset-normalizer==3.4.2
+chemeleon-dng==0.1.5
+click==8.2.0
+cloudpickle==3.1.1
+colorama==0.4.6 ; platform_system == "Windows"
+colorful==0.5.8
+ConfigArgParse==1.7
+contourpy==1.3.0
+cryptography==45.0.2
+custodian==2025.5.12
+cycler==0.12.1
+Deprecated==1.2.18
+distlib==0.3.9
+dm-tree==0.1.8
+dnspython==2.7.0
+docker-pycreds==0.4.0
+e3nn==0.5.0
+emmet-core==0.84.6
+exceptiongroup==1.3.1
+fairchem-core==2.16.0
+fastapi==0.135.1
+filelock==3.18.0
+fire==0.7.1
+fonttools==4.54.1
+frozenlist==1.6.2
+fsspec==2025.3.2
+geometric==1.1.1
+gitdb==4.0.12
+GitPython==3.1.44
+google-api-core==2.24.2
+google-auth==2.40.2
+google-cloud-core==2.4.3
+google-cloud-storage==2.19.0
+google-crc32c==1.7.1
+google-resumable-media==2.7.2
+googleapis-common-protos==1.70.0
+graph_longrange @ git+https://github.com/WillBaldwin0/graph_electrostatics.git@0e21d5546c482d08388a08eb4d948e833227ce47
+grpcio==1.71.0
+h11==0.16.0
+h5py==3.13.0
+httptools==0.7.1
+huggingface-hub==0.31.4
+hydra-core==1.3.2
+idna==3.10
+importlib_metadata==8.7.1
+iniconfig==2.3.0
+isodate==0.7.2
+jax==0.6.2
+jaxlib==0.6.2
+Jinja2==3.1.6
+jmespath==1.0.1
+jobflow==0.2.0
+joblib==1.5.0
+jsonlines==4.0.0
+jsonschema==4.23.0
+jsonschema-specifications==2025.4.1
+kiwisolver==1.4.7
+latexcodec==3.0.0
+lightning-utilities==0.14.3
+llvmlite==0.44.0
+lmdb==1.6.2
+loguru==0.7.3
+mace_e3nn_new @ git+https://github.com/manassharma07/mace_e3nn_new.git@523668587de88291af5fcfe324c808ec48d41781
+maggma==0.71.5
+Markdown==3.8
+markdown-it-py==3.0.0
+MarkupSafe==3.0.2
+matplotlib==3.9.2
+matscipy==1.1.1
+mattersim==1.1.2
+mdurl==0.1.2
+metatensor-core==0.1.19
+metatensor-learn==0.4.0
+metatensor-operations==0.4.0
+metatensor-torch==0.8.4
+metatomic-torch==0.1.11
+metatrain==2026.2
+ml_dtypes==0.6.0
+mongomock==4.3.0
+monty==2025.3.3
+mp-api==0.45.3
+mpmath==1.3.0
+msal==1.32.3
+msal-extensions==1.3.1
+msgpack==1.1.0
+multidict==6.4.4
+mypy_extensions==1.1.0
+narwhals==1.38.0
+networkx==3.4.2
+numba==0.61.2
+numpy==1.26.4
+omegaconf==2.3.0
+opencensus==0.11.4
+opencensus-context==0.1.3
+opentelemetry-api==1.40.0
+opentelemetry-exporter-prometheus==0.61b0
+opentelemetry-proto==1.40.0
+opentelemetry-sdk==1.40.0
+opentelemetry-semantic-conventions==0.61b0
+opt_einsum==3.4.0
+opt-einsum-fx==0.1.4
+orb-models==0.5.5
+orjson==3.10.18
+packaging==26.0
+palettable==3.3.3
+pandas==2.2.3
+paramiko==3.5.1
+phonopy==2.38.2
+pillow==10.4.0
+platformdirs==4.3.8
+plotly==6.0.1
+pluggy==1.6.0
+prettytable==3.16.0
+prometheus_client==0.24.1
+propcache==0.3.1
+proto-plus==1.26.1
+protobuf==6.31.0
+psutil==7.0.0
+psycopg2-binary==2.9.10
+PubChemPy==1.0.5
+py-spy==0.4.1
+py3Dmol==2.4.2
+pyarrow==20.0.0
+pyasn1==0.6.1
+pyasn1_modules==0.4.2
+pybtex==0.24.0
+pycparser==2.22
+pydantic==2.12.5
+pydantic_core==2.41.5
+pydantic-settings==2.9.1
+pydash==8.0.5
+pydeck==0.9.1
+Pygments==2.19.1
+PyJWT==2.10.1
+pymatgen==2025.10.7
+pymongo==4.10.1
+PyMySQL==1.1.1
+PyNaCl==1.5.0
+pyparsing==3.1.4
+pyre-extensions==0.0.32
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
+python-hostlist==2.2.1
+pytorch-lightning==2.6.5
+pytz==2024.2
+PyYAML==6.0.2
+pyzmq==26.4.0
+ray==2.54.0
+rdkit==2025.9.3
+referencing==0.36.2
+requests==2.32.3
+rich==13.9.4
+rpds-py==0.24.0
+rsa==4.9.1
+ruamel.yaml==0.18.10
+ruamel.yaml.clib==0.2.12
+s3transfer==0.13.0
+scikit-learn==1.7.0
+scipy==1.10.1
+seekpath==2.1.0
+sella==2.6.0
+sentinels==1.0.0
+sentry-sdk==2.29.1
+setproctitle==1.3.6
+setuptools==80.7.1
+sevenn==0.12.0
+six==1.16.0
+smart-open==7.1.0
+smmap==5.0.2
+spglib==2.6.0
+sshtunnel==0.4.0
+starlette==0.52.1
+streamlit==1.45.1
+submitit==1.5.2
+symfc==1.4.0
+sympy==1.14.0
+tabulate==0.9.0
+tenacity==9.1.2
+tensorboard==2.19.0
+tensorboard-data-server==0.7.2
+termcolor==3.3.0
+threadpoolctl==3.6.0
+toml==0.10.2
+tomli==2.4.1
+torch==2.7.1+cu128
+torch-dftd==0.5.1
+torch-ema==0.3
+torch-geometric==2.6.1
+torch-runstats==0.2.0
+torchaudio==2.7.1
+torchmetrics==1.7.1
+torchtnt==0.2.4
+torchvision==0.22.1
+tornado==6.4.2
+tqdm==4.67.1
+typing_extensions==4.15.0
+typing-inspect==0.9.0
+typing-inspection==0.4.2
+tzdata==2024.2
+uncertainties==3.2.3
+upet @ git+https://github.com/lab-cosmo/upet.git@0b1027fd8ece5b80f9ec84876115b24bb342c50e
+urllib3==2.4.0
+uvicorn==0.41.0
+vesin==0.5.2
+virtualenv==20.31.2
+wandb==0.19.11
+warp-lang==1.11.1
+watchdog==6.0.0 ; platform_system != "Darwin"
+watchfiles==1.1.1
+wcwidth==0.2.13
+websockets==16.0
+Werkzeug==3.1.3
+win32_setctime==1.2.0 ; sys_platform == "win32"
+wrapt==1.17.2
+yarl==1.20.0
+zipp==3.23.0
