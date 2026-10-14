@@ -1,5 +1,7 @@
 # MLIP Studio
 
+[![DOI](https://zenodo.org/badge/1243227927.svg)](https://doi.org/10.5281/zenodo.23377766)
+
 **An open platform for interactive benchmarking and simulations using machine learning interatomic potentials**
 
 MLIP Studio is a Streamlit-based web application for running, testing, comparing, and benchmarking universal machine learning interatomic potentials (MLIPs) for atomistic simulations of molecules and materials. It brings more than 60 pretrained MLIPs into a single graphical interface, so users can evaluate structures, compare models, run common simulation tasks, and benchmark against reference data without writing custom scripts for every model family.
@@ -588,15 +590,54 @@ Note that MLIP Studio provides access to several third-party model families, cal
 
 ## Citation
 
-If you use MLIP Studio in academic work, please cite the associated manuscript:
+If you use MLIP Studio in academic work, please cite the preprint:
 
 ```text
 Manas Sharma, Sudeep Punnathanam, and Ananth Govind Rajan.
-MLIP Studio: An Open Platform for Interactive Benchmarking and Simulations
-Using Machine Learning Interatomic Potentials.
+MLIP Studio: An Open Platform for Interactive Benchmarking and Atomistic Simulations
+Using Machine Learning Interatomic Potentials. arXiv:2607.07606 (2026).
+https://doi.org/10.48550/arXiv.2607.07606
 ```
 
-Citation details will be updated when a DOI or preprint is available.
+The citation will be updated once the peer-reviewed version is published.
+
+In addition, please cite the version of MLIP Studio you used. Each release is archived on Zenodo with its own DOI:
+
+| Version | DOI |
+| --- | --- |
+| v0.1.0 | [10.5281/zenodo.23377767](https://doi.org/10.5281/zenodo.23377767) |
+| All versions (resolves to the latest) | [10.5281/zenodo.23377766](https://doi.org/10.5281/zenodo.23377766) |
+
+```text
+Manas Sharma, Sudeep Punnathanam, and Ananth Govind Rajan.
+MLIP Studio (v0.1.0). Zenodo (2026). https://doi.org/10.5281/zenodo.23377767
+```
+
+BibTeX for both:
+
+```bibtex
+@misc{sharma2026mlipstudio,
+  title         = {{MLIP Studio}: An Open Platform for Interactive Benchmarking and Atomistic Simulations Using Machine Learning Interatomic Potentials},
+  author        = {Sharma, Manas and Punnathanam, Sudeep and Govind Rajan, Ananth},
+  year          = {2026},
+  eprint        = {2607.07606},
+  archivePrefix = {arXiv},
+  primaryClass  = {cond-mat.mtrl-sci},
+  doi           = {10.48550/arXiv.2607.07606}
+}
+
+@software{mlipstudio_v0_1_0,
+  title     = {{MLIP Studio}},
+  author    = {Sharma, Manas and Punnathanam, Sudeep and Govind Rajan, Ananth},
+  year      = {2026},
+  version   = {v0.1.0},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.23377767},
+  url       = {https://doi.org/10.5281/zenodo.23377767}
+}
+```
+
+GitHub's "Cite this repository" button, generated from `CITATION.cff`, provides the software citation in APA and BibTeX formats.
 
 ## Acknowledgements
 

@@ -22,6 +22,14 @@ authors:
     affiliation: "Department of Chemical Engineering, Indian Institute of Science, Bengaluru, India"
     orcid: "https://orcid.org/0000-0003-2462-0506"
 version: 0.1.0
+doi: 10.5281/zenodo.23377766
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23377766
+    description: "Concept DOI for all versions of MLIP Studio; always resolves to the latest version"
+  - type: doi
+    value: 10.5281/zenodo.23377767
+    description: "Version DOI for MLIP Studio v0.1.0"
 license-url: "https://github.com/mlipstudio/MLIP-Studio/blob/main/LICENSE.md"
 repository-code: "https://github.com/mlipstudio/MLIP-Studio"
 url: "https://mlipstudio.iisc.ac.in"
