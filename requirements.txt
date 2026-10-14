@@ -29,8 +29,8 @@ pubchempy
 #upet
 warp-lang
 #upet@git+https://github.com/lab-cosmo/upet.git
-metatrain
-metatomic-torch
+metatrain==2026.2
+metatomic-torch==0.1.11
 metatomic-ase
 ray
 ray[serve]
