@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use MLIP Studio, please cite it using the metadata from this file."
+type: software
+title: "MLIP Studio"
+abstract: >-
+  MLIP Studio is an open platform for interactive benchmarking and simulations
+  using machine learning interatomic potentials (MLIPs). It brings more than 60
+  pretrained universal MLIPs into a single graphical interface and a Python API,
+  so users can evaluate structures, compare models, run common simulation tasks,
+  and benchmark against reference data for molecules and materials.
+authors:
+  - given-names: Manas
+    family-names: Sharma
+    affiliation: "Department of Chemical Engineering, Indian Institute of Science, Bengaluru, India"
+    orcid: "https://orcid.org/0000-0002-5346-6280"
+  - given-names: Sudeep
+    family-names: Punnathanam
+    affiliation: "Department of Chemical Engineering, Indian Institute of Science, Bengaluru, India"
+    orcid: "https://orcid.org/0000-0002-3703-9158"
+  - given-names: Ananth
+    family-names: Govind Rajan
+    affiliation: "Department of Chemical Engineering, Indian Institute of Science, Bengaluru, India"
+    orcid: "https://orcid.org/0000-0003-2462-0506"
+version: 0.1.0
+license-url: "https://github.com/mlipstudio/MLIP-Studio/blob/main/LICENSE.md"
+repository-code: "https://github.com/mlipstudio/MLIP-Studio"
+url: "https://mlipstudio.iisc.ac.in"
+keywords:
+  - machine learning interatomic potentials
+  - MLIP
+  - atomistic simulation
+  - computational chemistry
+  - materials science
+  - benchmarking
+  - geometry optimization
